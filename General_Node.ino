@@ -4,15 +4,19 @@
 #define NODE_NUMBER 2
 #define SCAN_PERIOD 5000
 
-boolean foundConnection = false;
+String default_ssid_name = "MeshNode";
 String received_data = "";
+const int port_number = 80;
+
+boolean foundConnection = false;
+boolean connectedClientTest = false;
 
 //Initializing client and server
 WiFiClient client;
 WiFiServer server(80);
 
 //Variables that will be used to configure the network
-String default_ssid_name = "MeshNode";
+
 String ssid;
 String password;
 IPAddress local_IP(192,168,4,NODE_NUMBER);
@@ -90,16 +94,16 @@ void setup()
   }
   Serial.print("Setting soft-AP configuration ... ");
   Serial.println(WiFi.softAPConfig(local_IP, gateway, subnet) ? "Ready IP config" : "Failed! IP config");
- 
-  //Initializng server
-  server.begin();
-  
-  //Debugging
+
   IPAddress this_node_ip = WiFi.softAPIP();   // Obtain the IP of the Server 
   Serial.print("Server IP is: ");             // Print the IP to the monitor window 
   Serial.println(this_node_ip);
   
   WiFi.disconnect();
+  
+  //Initializng server
+  server.begin();
+  
 } //end of setup
 
 void loop()
@@ -122,6 +126,8 @@ void loop()
   }
   
   //if a node has sent data to this node, a connection to the next one will be established
+  //in this case, this part is not being used, since the tests are being done with two nodes
+  //this one is the server
   if (Client_Sending_Data_Connected)
   {
       if (!WiFi.isConnected())
@@ -138,21 +144,29 @@ void loop()
             //delay(500);
             Serial.print(".");
           }
-          Serial.println("connected");
+          Serial.println("Wifi connected");
         }
       } //end if isConnected
       else 
       {
         Serial.println("\nStarting connection with the server...");
         // if you get a connection, report back via serial:
-        client.connect(connectedNode_staticIP, 80);
-        if (client.connect(connectedNode_staticIP, 80)) {
-          Serial.println("connected");
+        connectedClientTest = client.connect(connectedNode_staticIP, port_number);
+        delay(1000);
+        if (connectedClientTest) 
+        {
+          Serial.println("Client connected");
           client.println("Node sending message to server");
           client.println(received_data);
           client.stop();
-          WiFi.disconnect();
-        } 
+          connectedClientTest = false;
+          //WiFi.disconnect();
+        }
+        else
+        {
+          Serial.println ("It did not get a connection");
+          //client.stop(); 
+        }
       }//end else isConnected 
   }//end if sending_data_connected
   
