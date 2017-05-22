@@ -7,7 +7,6 @@
 boolean foundConnection = false;
 String received_data = "";
 
-
 //Initializing client and server
 WiFiClient client;
 WiFiServer server(80);
@@ -91,16 +90,16 @@ void setup()
   }
   Serial.print("Setting soft-AP configuration ... ");
   Serial.println(WiFi.softAPConfig(local_IP, gateway, subnet) ? "Ready IP config" : "Failed! IP config");
-
+ 
+  //Initializng server
+  server.begin();
+  
+  //Debugging
   IPAddress this_node_ip = WiFi.softAPIP();   // Obtain the IP of the Server 
   Serial.print("Server IP is: ");             // Print the IP to the monitor window 
   Serial.println(this_node_ip);
   
   WiFi.disconnect();
-  
-  //Initializng server
-  server.begin();
-  
 } //end of setup
 
 void loop()
@@ -121,8 +120,6 @@ void loop()
     // close the connection:
     client_sending_data.stop();
   }
-
-
   
   //if a node has sent data to this node, a connection to the next one will be established
   if (Client_Sending_Data_Connected)
