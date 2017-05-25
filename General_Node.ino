@@ -151,6 +151,20 @@ void loop()
       {
         Serial.println("\nStarting connection with the server...");
         // if you get a connection, report back via serial:
+        
+        /*
+        boolean connectedClientTest;
+        int counter = 0;
+        do {
+            connectedClientTest = client.connect(connectedNode_staticIP, port_number);
+            if (connectedClientTest) { break; }
+            client.stop();
+            delay(1000);
+            Serial.println("retry");
+            counter++;
+        } while (!connectedClientTest && counter <5);
+        
+        */
         connectedClientTest = client.connect(connectedNode_staticIP, port_number);
         delay(1000);
         if (connectedClientTest) 
