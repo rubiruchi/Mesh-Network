@@ -114,68 +114,88 @@ void loop()
 //if a node has sent data to this node, a connection to the next one will be established
 //  if (Client_Sending_Data_Connected)
 //  {
-    if (!WiFi.isConnected())
-    {
-      foundConnection = getStrongerSignal();
-      if (foundConnection)
+      if (!WiFi.isConnected())
       {
-        Serial.println(stronger_WifiSSID);
-        WiFi.begin(stronger_WifiSSID.c_str(), stronger_WifiSSID.c_str());
-        delay(5000);
-        
-        //Configuring IP address that will be used to send data to server
-        //connectedNode_staticIP = IPAddress(192,168,1,connectedNodeNumber);
-        if (WiFi.status() != WL_CONNECTED)
+        foundConnection = getStrongerSignal();
+        if (foundConnection)
         {
-          //delay(2000);
-          Serial.print(".");
+          Serial.println(stronger_WifiSSID);
+          WiFi.begin(stronger_WifiSSID.c_str(), stronger_WifiSSID.c_str());
+          delay(5000);
+
+          //Configuring IP address that will be used to send data to server
+          //connectedNode_staticIP = IPAddress(192,168,1,connectedNodeNumber);
+          if (WiFi.status() != WL_CONNECTED)
+          {
+            //delay(2000);
+            Serial.print(".");
+          }
+          else
+          {
+            int connectedNodeNumber = int (stronger_WifiSSID.charAt(8) - '0');
+            connectedNode_staticIP = IPAddress(192,168,4,connectedNodeNumber);
+            //ipDebug = connectedNode_staticIP.toString().c_str();
+            Serial.println("Wifi connected");
+            Serial.println("IP address:");
+            Serial.println(connectedNode_staticIP.toString());
+          }
         }
-        else
-        {
-          int connectedNodeNumber = int (stronger_WifiSSID.charAt(8) - '0');
-          connectedNode_staticIP = IPAddress(192,168,4,connectedNodeNumber);
-          //ipDebug = connectedNode_staticIP.toString().c_str();
-          Serial.println("Wifi connected");
-          Serial.println("IP address:");
-          Serial.println(connectedNode_staticIP.toString());
-        }
-      }
-    } //end if isConnected
-    else 
-    {
-      Serial.println("\nStarting connection with the server...");
-      // if you get a connection, report back via serial:
-     
-      /* 
-              boolean connectedClientTest;
-        int counter = 0;
-        do {
-            connectedClientTest = client.connect(connectedNode_staticIP, port_number);
-            if (connectedClientTest) { break; }
+      } //end if isConnected
+      else 
+      {
+        Serial.println("\nStarting connection with the server...");
+        // if you get a connection, report back via serial:
+
+                //First try
+          /*
+          boolean connectedClientTest;
+          int counter = 0;
+          do {
+              connectedClientTest = client.connect(connectedNode_staticIP, port_number);
+              if (connectedClientTest) { break; }
+              client.stop();
+              delay(1000);
+              Serial.println("retry");
+              counter++;
+          } while (!connectedClientTest && counter <5);
+          */
+
+          //Second try
+          /*
+          connectedClientTest = false; 
+          if (!connectedClientTest)
+          {
             client.stop();
             delay(1000);
-            Serial.println("retry");
-            counter++;
-        } while (!connectedClientTest && counter <5);
-        
-        */
-      
-      connectedClientTest = client.connect(connectedNode_staticIP, port_number);
-      delay(1000);
-      if (connectedClientTest) {
-        Serial.println("Client connected");
-        client.println("Node sending message to server");
-        client.println(received_data);
-        client.stop();
-        connectedClientTest = false;
-        //WiFi.disconnect();
-      }
-      else
-      {
-        Serial.println ("It did not get a connection");
-        //client.stop();
-      }
-     // }//end else isConnected 
-  }//end if sending_data_connected
-  
+            connectedClientTest = client.connect(connectedNode_staticIP, port_number);
+          }
+          else
+          {
+            Serial.println("Client connected");
+            client.println("Node sending message to server");
+            client.println(received_data);
+            client.stop();
+            connectedClientTest = false;
+            //WiFi.disconnect();
+          } */
+
+          //What I'm doing
+          connectedClientTest = client.connect(connectedNode_staticIP, port_number);
+          delay(1000);
+          if (connectedClientTest) 
+          {
+            Serial.println("Client connected");
+            client.println("Node sending message to server");
+            client.println(received_data);
+            client.stop();
+            connectedClientTest = false;
+            //WiFi.disconnect();
+          }
+          else
+          {
+            Serial.println ("It did not get a connection");
+            //client.stop();
+          }
+        } //end else isConnected 
+   //}//end if sending_data_connected 
 }//end of loop
