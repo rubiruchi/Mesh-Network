@@ -1,4 +1,6 @@
-#include "ESP8266WiFi.h"
+#include <ESP8266WiFi.h>
+#include <WiFiClient.h>
+#include <WiFiServer.h>
 #include <String.h>
 
 #define NODE_NUMBER 2
@@ -13,7 +15,7 @@ boolean connectedClientTest = false;
 
 //Initializing client and server
 WiFiClient client;
-WiFiServer server(80);
+WiFiServer server(port_number);
 
 //Variables that will be used to configure the network
 
@@ -79,8 +81,13 @@ void setup()
   Serial.println();
 
   WiFi.mode(WIFI_AP_STA);
-
+  WiFi.disconnect();
+  
   //Configuring softAP 
+  
+  Serial.print("Setting soft-AP configuration ... ");
+  Serial.println(WiFi.softAPConfig(local_IP, gateway, subnet) ? "Ready IP config" : "Failed! IP config");
+  
   Serial.print("Setting soft-AP ... "); 
   boolean result = false;
   while (!result)
@@ -92,14 +99,11 @@ void setup()
     Serial.println("Failed!");
     delay(100);
   }
-  Serial.print("Setting soft-AP configuration ... ");
-  Serial.println(WiFi.softAPConfig(local_IP, gateway, subnet) ? "Ready IP config" : "Failed! IP config");
-
+  
+  //Debugging
   IPAddress this_node_ip = WiFi.softAPIP();   // Obtain the IP of the Server 
   Serial.print("Server IP is: ");             // Print the IP to the monitor window 
   Serial.println(this_node_ip);
-  
-  WiFi.disconnect();
   
   //Initializng server
   server.begin();
@@ -114,8 +118,10 @@ void loop()
  
   // listen for incoming clients
   WiFiClient client_sending_data = server.available();
-  if (client_sending_data) {
-    if (client_sending_data.connected()) {
+  if (client_sending_data) 
+  {
+    if (client_sending_data.connected()) 
+    {
       Serial.println("Connected to client");
       received_data = client_sending_data.read();
       Serial.println(received_data);
@@ -152,6 +158,7 @@ void loop()
         Serial.println("\nStarting connection with the server...");
         // if you get a connection, report back via serial:
         
+        //First try
         /*
         boolean connectedClientTest;
         int counter = 0;
@@ -163,8 +170,28 @@ void loop()
             Serial.println("retry");
             counter++;
         } while (!connectedClientTest && counter <5);
-        
         */
+        
+        //Second try
+        /*
+        connectedClientTest = false; 
+        if (!connectedClientTest)
+        {
+          client.stop();
+          delay(1000);
+          connectedClientTest = client.connect(connectedNode_staticIP, port_number);
+        }
+        else
+        {
+          Serial.println("Client connected");
+          client.println("Node sending message to server");
+          client.println(received_data);
+          client.stop();
+          connectedClientTest = false;
+          //WiFi.disconnect();
+        } */
+        
+        //What I'm doing
         connectedClientTest = client.connect(connectedNode_staticIP, port_number);
         delay(1000);
         if (connectedClientTest) 
