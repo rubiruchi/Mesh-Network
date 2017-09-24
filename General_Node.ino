@@ -1,24 +1,36 @@
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
+#include <WiFiUdp.h>
 #include <WiFiServer.h>
 #include <String.h>
 
 #define NODE_NUMBER 2
 #define SCAN_PERIOD 5000
 
+//Those are the variables that ate going to end the conflict between the station configs and the AP configs
+extern "C" void* eagle_lwip_getif(uint8_t);
+extern "C" void netif_set_up(void*);
+extern "C" void netif_set_down(void*);
+
+String previous_node = "0";
 String default_ssid_name = "MeshNode";
-String received_data = "";
-const int port_number = 80;
+const uint16_t node_port = 80 + NODE_NUMBER;
+unsigned int next_node_port = 80;
+
+char incomingPacket[255];
+char  replyPacket[] = "Message received";
+char* received_data;
 
 boolean foundConnection = false;
 boolean connectedClientTest = false;
+boolean node_connected = false;
 
 //Initializing client and server
+WiFiUDP Udp;
 WiFiClient client;
-WiFiServer server(port_number);
+WiFiServer server(node_port);
 
 //Variables that will be used to configure the network
-
 String ssid;
 String password;
 IPAddress local_IP(192,168,4,NODE_NUMBER);
@@ -51,7 +63,7 @@ boolean getStrongerSignal ()
       Serial.printf("%d: %s, Ch:%d (%ddBm) %s\n", i+1, WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i), WiFi.encryptionType(i) == ENC_TYPE_NONE ? "open" : "");
       
       //Checks which one has the best signal, as long as it is one of the nodes 
-      if (stronger_WifiSignal < WiFi.RSSI(i) && WiFi.SSID(i).startsWith("MeshNode"))
+      if (stronger_WifiSignal < WiFi.RSSI(i) && WiFi.SSID(i).startsWith("MeshNode") && !(WiFi.SSID(i).endsWith(previous_node)))
       { 
         foundMeshNetwork = true;
         stronger_WifiSignal = WiFi.RSSI(i);
@@ -70,7 +82,6 @@ boolean getStrongerSignal ()
     
 } //getStrongerSignal ends
 
-
 void setup()
 {
   ssid = default_ssid_name;
@@ -84,7 +95,6 @@ void setup()
   WiFi.disconnect();
   
   //Configuring softAP 
-  
   Serial.print("Setting soft-AP configuration ... ");
   Serial.println(WiFi.softAPConfig(local_IP, gateway, subnet) ? "Ready IP config" : "Failed! IP config");
   
@@ -94,10 +104,10 @@ void setup()
   {
     result = WiFi.softAP(ssid.c_str(), password.c_str());
     if(result == true)
-    Serial.println("Ready");
+      Serial.println("Ready");
     else
-    Serial.println("Failed!");
-    delay(100);
+      Serial.println("Failed!");
+      delay(100);
   }
   
   //Debugging
@@ -107,34 +117,47 @@ void setup()
   
   //Initializng server
   server.begin();
+  delay (2000);
+  Udp.begin(node_port);
   
 } //end of setup
 
 void loop()
 {
-  Serial.println("waiting client");
-  delay (500);
-  boolean Client_Sending_Data_Connected = false;
- 
+  Serial.println("Checking for packets");
+  delay (1000);
   // listen for incoming clients
-  WiFiClient client_sending_data = server.available();
-  if (client_sending_data) 
+  int packetSize = Udp.parsePacket();
+  if (packetSize)
   {
-    if (client_sending_data.connected()) 
+    // receive incoming UDP packets
+    Serial.printf("Received %d bytes from %s, port %d\n", packetSize, Udp.remoteIP().toString().c_str(), Udp.remotePort());
+    previous_node = Udp.remoteIP().toString().substring(10);
+    Serial.println(previous_node);
+    int len = Udp.read(incomingPacket, 255);
+    if (len > 0)
     {
-      Serial.println("Connected to client");
-      received_data = client_sending_data.read();
-      Serial.println(received_data);
-      Client_Sending_Data_Connected = true;
+      incomingPacket[len] = 0;
     }
-    // close the connection:
-    client_sending_data.stop();
+    Serial.printf("UDP packet contents: %s\n", incomingPacket);
+    received_data = incomingPacket;
+    
+    // send back a reply, to the IP address and port we got the packet from
+    Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
+    Udp.write(replyPacket);
+    Udp.endPacket();
+    node_connected = true;
+  }
+  else
+  {
+    Serial.println("No packet was received.");
+    node_connected = false;
   }
   
   //if a node has sent data to this node, a connection to the next one will be established
   //in this case, this part is not being used, since the tests are being done with two nodes
   //this one is the server
-  if (Client_Sending_Data_Connected)
+  if (node_connected)
   {
       if (!WiFi.isConnected())
       {
@@ -142,12 +165,13 @@ void loop()
         if (foundConnection)
         {
           WiFi.begin(stronger_WifiSSID.c_str(), stronger_WifiSSID.c_str());
+          delay (2000);
           //Configuring IP address that will be used to send data to server
-          int connectedNodeNumber = int (stronger_WifiSSID.charAt(8) - '0');
+          unsigned int connectedNodeNumber = int (stronger_WifiSSID.charAt(8) - '0');
+          next_node_port = next_node_port + connectedNodeNumber;
           connectedNode_staticIP = IPAddress(192,168,1,connectedNodeNumber);
           if (WiFi.status() != WL_CONNECTED)
           {
-            //delay(500);
             Serial.print(".");
           }
           Serial.println("Wifi connected");
@@ -155,61 +179,19 @@ void loop()
       } //end if isConnected
       else 
       {
-        Serial.println("\nStarting connection with the server...");
         // if you get a connection, report back via serial:
+        Serial.println("\nStarting connection with the server...");
         
-        //First try
-        /*
-        boolean connectedClientTest;
-        int counter = 0;
-        do {
-            connectedClientTest = client.connect(connectedNode_staticIP, port_number);
-            if (connectedClientTest) { break; }
-            client.stop();
-            delay(1000);
-            Serial.println("retry");
-            counter++;
-        } while (!connectedClientTest && counter <5);
-        */
+        // before doing HTTP request, disable SoftAP interface:
+        netif_set_down(eagle_lwip_getif(1));
         
-        //Second try
-        /*
-        connectedClientTest = false; 
-        if (!connectedClientTest)
-        {
-          client.stop();
-          delay(1000);
-          connectedClientTest = client.connect(connectedNode_staticIP, port_number);
-        }
-        else
-        {
-          Serial.println("Client connected");
-          client.println("Node sending message to server");
-          client.println(received_data);
-          client.stop();
-          connectedClientTest = false;
-          //WiFi.disconnect();
-        } */
+        Udp.beginPacket(Udp.remoteIP(), next_node_port);
+        Udp.write(received_data);
+        Udp.endPacket();
         
-        //What I'm doing
-        connectedClientTest = client.connect(connectedNode_staticIP, port_number);
-        delay(1000);
-        if (connectedClientTest) 
-        {
-          Serial.println("Client connected");
-          client.println("Node sending message to server");
-          client.println(received_data);
-          client.stop();
-          connectedClientTest = false;
-          //WiFi.disconnect();
-        }
-        else
-        {
-          Serial.println ("It did not get a connection");
-          //client.stop(); 
-        }
+        //now enable SoftAP interface again
+        netif_set_up(eagle_lwip_getif(1));
+        
       }//end else isConnected 
-  }//end if sending_data_connected
-  
+  }//end if node_connected
 }//end of loop
-
