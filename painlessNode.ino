@@ -1,24 +1,23 @@
-//************************************************************
-// this is a simple example that uses the painlessMesh library
-//
-// 1. sends a silly message to every node on the mesh at a random time betweew 1 and 5 seconds
-// 2. prints anything it recieves to Serial.print
-//
-//
-//************************************************************
 #include "painlessMesh.h"
 
-#define   MESH_PREFIX     "whateverYouLike"
-#define   MESH_PASSWORD   "somethingSneaky"
-#define   MESH_PORT       5555
+#define   MESH_PREFIX     "MeshNode"
+#define   MESH_PASSWORD   "MeshNode"
+#define   MESH_PORT       80
+#define   LAST_NODE_ID    2786574637
 
-void sendMessage() ; // Prototype so PlatformIO doesn't complain
+String sensor_data = "test";
+uint32_t last_node_id = LAST_NODE_ID;
+
+void sendMessage() ;
 
 painlessMesh  mesh;
-Task taskSendMessage( TASK_SECOND * 1 , TASK_FOREVER, &sendMessage );
+Task taskSendMessage(TASK_SECOND * 1 , TASK_FOREVER, &sendMessage);
 
-void receivedCallback( uint32_t from, String &msg ) {
+void receivedCallback(uint32_t from, String &msg) {
   Serial.printf("startHere: Received from %u msg=%s\n", from, msg.c_str());
+  mesh.sendSingle(from, "Received");
+
+  
 }
 
 void newConnectionCallback(uint32_t nodeId) {
@@ -39,7 +38,7 @@ void setup() {
 //mesh.setDebugMsgTypes( ERROR | MESH_STATUS | CONNECTION | SYNC | COMMUNICATION | GENERAL | MSG_TYPES | REMOTE ); // all types on
   mesh.setDebugMsgTypes( ERROR | STARTUP );  // set before init() so that you can see startup messages
 
-  mesh.init( MESH_PREFIX, MESH_PASSWORD, MESH_PORT );
+  mesh.init(MESH_PREFIX, MESH_PASSWORD, MESH_PORT);
   mesh.onReceive(&receivedCallback);
   mesh.onNewConnection(&newConnectionCallback);
   mesh.onChangedConnections(&changedConnectionCallback);
@@ -54,9 +53,8 @@ void loop() {
 }
 
 void sendMessage() {
-  String msg = "Hello from node ";
-  msg += mesh.getNodeId();
-  mesh.sendBroadcast( msg );
+  String msg = sensor_data;
+  //msg += mesh.getNodeId();
+  mesh.sendSingle(last_node_id, msg );
   taskSendMessage.setInterval( random( TASK_SECOND * 1, TASK_SECOND * 5 ));
 }
-
